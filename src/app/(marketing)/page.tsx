@@ -113,7 +113,7 @@ export default function LandingPage() {
             <div className="md:w-1/2 relative">
               <div className="relative z-10 rounded-xl overflow-hidden border border-gray-800 shadow-2xl shadow-purple-900/20">
                 <Image
-                  src="/aura-landing-image-4.png"
+                  src="/placeholder.svg?height=600&width=400"
                   alt="Aura.io App"
                   width={400}
                   height={600}
@@ -217,7 +217,7 @@ export default function LandingPage() {
             <div className="md:w-1/2 relative mt-12 md:mt-0">
               <div className="relative z-10 rounded-xl overflow-hidden border border-gray-800 shadow-2xl shadow-purple-900/20">
                 <Image
-                  src="/aura-landing-image-1.png"
+                  src="/placeholder.svg?height=600&width=400"
                   alt="Aura.io App Interface"
                   width={400}
                   height={600}
