@@ -26,9 +26,7 @@ export function ProfileView() {
   const [activeTab, setActiveTab] = useState("posts");
   const { posts, likedPosts, toggleLike } = usePosts();
 
-  const userPosts = posts.filter(
-    (post) => post.user.username === "@alexmorgan"
-  );
+  const userPosts = posts.filter((post) => post.display_name === "@alexmorgan");
 
   const profileStats = [
     { label: "Posts", value: "128" },
@@ -170,10 +168,11 @@ export function ProfileView() {
               {userPosts.length > 0 ? (
                 userPosts.map((post) => (
                   <PostCard
-                    key={post.id}
+                    key={post.incident_id}
                     post={post}
-                    isLiked={likedPosts[post.id]}
-                    onLike={() => toggleLike(post.id)}
+                    isLiked={likedPosts[post.incident_id]}
+                    onLike={() => toggleLike(post.incident_id)}
+                    onDislike={() => toggleLike(post.incident_id)}
                   />
                 ))
               ) : (
