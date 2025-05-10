@@ -9,8 +9,6 @@ import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { AuthSocialButtons } from "@/components/features/auth/auth-social-buttons";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -64,54 +62,88 @@ export default function LoginPage() {
     setIsLoading(true);
     // Call API to log in
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            username: formData.email,
-            password: formData.password,
-          }),
-        }
-      );
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-      if (response.status == 401) {
-        setIsLoading(false);
-
-        setErrors((prev) => ({
-          ...prev,
-          email: "Invalid email or password",
-        }));
-        return;
+      if (!backendUrl) {
+        throw new Error("Backend URL is not configured");
       }
 
-      if (response.status == 500) {
+      // Remove any trailing slashes from the backend URL
+      const cleanBackendUrl = backendUrl.replace(/\/$/, "");
+
+      const response = await fetch(`${cleanBackendUrl}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        credentials: "include",
+        body: new URLSearchParams({
+          username: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      if (!response.ok) {
         setIsLoading(false);
 
-        setErrors((prev) => ({
-          ...prev,
-          email: "Server error",
-        }));
+        if (response.status === 401) {
+          setErrors((prev) => ({
+            ...prev,
+            email: "Invalid email or password",
+          }));
+        } else if (response.status === 500) {
+          setErrors((prev) => ({
+            ...prev,
+            email: "Server error. Please try again later.",
+          }));
+        } else {
+          setErrors((prev) => ({
+            ...prev,
+            email: "An unexpected error occurred. Please try again.",
+          }));
+        }
         return;
       }
 
       const data = await response.json();
 
-      console.log(data);
+      if (!data.access_token) {
+        setIsLoading(false);
+        setErrors((prev) => ({
+          ...prev,
+          email: "Invalid response from server",
+        }));
+        return;
+      }
 
-      const access_token = data.access_token;
-
-      // Store it in the cookie
-      document.cookie = `access_token=${access_token}; path=/; max-age=3600`;
+      // Set secure cookie with proper attributes
+      document.cookie = `access_token=${data.access_token}; path=/; max-age=3600; secure; samesite=strict`;
 
       return router.push("/home");
     } catch (error) {
       console.error("Login error:", error);
-      setErrors((prev) => ({ ...prev, email: "Login failed" }));
       setIsLoading(false);
+
+      if (error instanceof TypeError && error.message === "Failed to fetch") {
+        setErrors((prev) => ({
+          ...prev,
+          email:
+            "Cannot connect to the server. Please check your internet connection.",
+        }));
+      } else if (
+        error instanceof Error &&
+        error.message === "Backend URL is not configured"
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          email: "Server configuration error. Please contact support.",
+        }));
+      } else {
+        setErrors((prev) => ({
+          ...prev,
+          email: "An unexpected error occurred. Please try again.",
+        }));
+      }
       return;
     }
   };
