@@ -7,6 +7,7 @@ export interface BasicPost {
   total_comments: number;
   name: string; // Author's name
   username?: string; // Author's username
+  display_name?: string; // Author's display name
 }
 
 export interface Post extends BasicPost {

@@ -40,7 +40,7 @@ export function PostCard({
   };
 
   // Default display values
-  const displayName = post.name || "User";
+  const displayName = post.display_name || post.name || "User";
   const username = post.username || displayName;
   const profileImage =
     isFullPost(post) && post.profile_image
