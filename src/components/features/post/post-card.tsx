@@ -15,16 +15,42 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import type { Post } from "@/types/post-types";
+import type { BasicPost, Post } from "@/types/post-types";
 
 interface PostCardProps {
-  post: Post;
+  post: Post | BasicPost;
   isLiked: boolean;
   onLike: () => void;
   onDislike: () => void;
+  isOwnPost?: boolean;
 }
 
-export function PostCard({ post, isLiked, onLike, onDislike }: PostCardProps) {
+export function PostCard({
+  post,
+  isLiked,
+  onLike,
+  onDislike,
+  isOwnPost = false,
+}: PostCardProps) {
+  // Check if post is the full Post type (has additional fields)
+  const isFullPost = (post: Post | BasicPost): post is Post => {
+    return (
+      "is_upvoted" in post || "is_downvoted" in post || "profile_image" in post
+    );
+  };
+
+  // Default display values
+  const displayName = post.name || "User";
+  const username = post.username || displayName;
+  const profileImage =
+    isFullPost(post) && post.profile_image
+      ? post.profile_image
+      : "/placeholder.svg";
+  const isUpvoted =
+    isFullPost(post) && post.is_upvoted ? post.is_upvoted : false;
+  const isDownvoted =
+    isFullPost(post) && post.is_downvoted ? post.is_downvoted : false;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -35,16 +61,16 @@ export function PostCard({ post, isLiked, onLike, onDislike }: PostCardProps) {
       <div className="p-4">
         <div className="flex items-start">
           <Avatar className="h-10 w-10 mr-3 border border-gray-700">
-            <AvatarImage src={"/placeholder.svg"} />
+            <AvatarImage src={profileImage} />
             <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-purple-700">
-              {post.display_name.charAt(0)}
+              {displayName.charAt(0)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="font-medium">{post.display_name}</h3>
-                <p className="text-xs text-gray-400">{post.display_name}</p>
+                <h3 className="font-medium">{displayName}</h3>
+                <p className="text-xs text-gray-400">@{username}</p>
               </div>
               <div className="flex items-center">
                 <span className="text-sm text-gray-400 mr-2">
@@ -91,32 +117,44 @@ export function PostCard({ post, isLiked, onLike, onDislike }: PostCardProps) {
           <Button
             variant="ghost"
             size="sm"
-            className="text-gray-400 hover:text-pink-500 hover:bg-pink-500/10"
-            onClick={onLike}
+            className={`text-gray-400 ${
+              isOwnPost
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:text-pink-500 hover:bg-pink-500/10"
+            }`}
+            onClick={isOwnPost ? undefined : onLike}
+            disabled={isOwnPost}
+            title={isOwnPost ? "You cannot vote on your own post" : "Upvote"}
           >
             <ArrowBigUpDash
               size={20}
               className={`mr-1.5 ${
-                post.is_upvoted ? "fill-pink-500 text-pink-500" : ""
+                isUpvoted ? "fill-pink-500 text-pink-500" : ""
               }`}
             />
-            <span className={post.is_upvoted ? "text-pink-500" : ""}>
+            <span className={isUpvoted ? "text-pink-500" : ""}>
               {post.total_upvotes}
             </span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="text-gray-400 hover:text-blue-500 hover:bg-blue-500/10"
-            onClick={onDislike}
+            className={`text-gray-400 ${
+              isOwnPost
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:text-blue-500 hover:bg-blue-500/10"
+            }`}
+            onClick={isOwnPost ? undefined : onDislike}
+            disabled={isOwnPost}
+            title={isOwnPost ? "You cannot vote on your own post" : "Downvote"}
           >
             <ArrowBigDownDash
               size={20}
               className={`mr-1.5 ${
-                post.is_downvoted ? "fill-blue-500 text-blue-500" : ""
+                isDownvoted ? "fill-blue-500 text-blue-500" : ""
               }`}
             />
-            <span className={post.is_downvoted ? "text-blue-500" : ""}>
+            <span className={isDownvoted ? "text-blue-500" : ""}>
               {post.total_downvotes}
             </span>
           </Button>

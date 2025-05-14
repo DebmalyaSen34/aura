@@ -63,7 +63,7 @@ export function FeedView() {
                     <PostCard
                       key={post.incident_id}
                       post={post}
-                      isLiked={post.is_upvoted}
+                      isLiked={post.is_upvoted || false}
                       onLike={() => toggleLike(post.incident_id, true, false)}
                       onDislike={() =>
                         toggleLike(post.incident_id, false, true)

@@ -1,14 +1,19 @@
-export interface Post {
+export interface BasicPost {
   incident_id: number;
   content: string;
   created_at: string;
-  display_name: string;
   total_upvotes: number;
   total_downvotes: number;
   total_comments: number;
-  user_id: number;
-  is_upvoted: boolean;
-  is_downvoted: boolean;
+  name: string; // Author's name
+  username?: string; // Author's username
+}
+
+export interface Post extends BasicPost {
+  user_id?: number;
+  is_upvoted?: boolean;
+  is_downvoted?: boolean;
+  profile_image?: string;
 }
 
 export interface Vote {

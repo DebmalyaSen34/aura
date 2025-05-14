@@ -46,3 +46,12 @@ export function formatDate(datestring: string) {
 
   return "just now";
 }
+
+export function getCleanDate(datestring: string) {
+  const date = new Date(datestring);
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}

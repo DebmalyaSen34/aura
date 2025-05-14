@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import {
   Settings,
@@ -13,29 +13,108 @@ import {
   Grid,
   Bookmark,
   Heart,
+  Plus,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PostCard } from "@/components/features/post/post-card";
+import { CreatePostModal } from "@/components/features/post/create-post-modal";
 import { usePosts } from "@/hooks/use-posts";
+import getAccessToken from "@/lib/getAcessToken";
+import { Profile } from "@/types/profile-types";
+import { getCleanDate } from "@/lib/utils";
 
 export function ProfileView() {
   const [activeTab, setActiveTab] = useState("posts");
   const { posts, likedPosts, toggleLike } = usePosts();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const userPosts = posts.filter((post) => post.display_name === "@alexmorgan");
+  const token = getAccessToken();
 
-  const profileStats = [
-    { label: "Posts", value: "128" },
-    { label: "Following", value: "843" },
-    { label: "Followers", value: "2.4K" },
-  ];
+  // Add this console log to debug the profile state
+  console.log("Current profile state:", profile);
+
+  // Fetch user profile data
+  const fetchUserProfile = async () => {
+    if (!token) {
+      console.error("No authentication token found");
+      return;
+    }
+
+    setIsRefreshing(true);
+
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      console.log("Backend URL:", backendUrl);
+
+      if (!backendUrl) {
+        throw new Error("Backend URL is not configured");
+      }
+
+      // Remove any trailing slashes from the backend URL
+      const cleanBackendUrl = backendUrl.replace(/\/$/, "");
+
+      console.log("Fetching profile from:", `${cleanBackendUrl}/profile`);
+
+      const response = await fetch(`${cleanBackendUrl}/profile`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        method: "GET",
+        credentials: "include", // Add this to ensure cookies are sent
+      });
+
+      console.log("Profile response status:", response.status);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Unauthorized: Token may be invalid or expired");
+        }
+        throw new Error(`Failed to fetch user profile: ${response.status}`);
+      }
+
+      const data: Profile = await response.json();
+      console.log("Profile data received:", data);
+      setProfile(data);
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log("useEffect running, token:", token);
+
+    if (token) {
+      fetchUserProfile();
+    }
+  }, [token]);
 
   return (
     <div className="pb-6">
+      {/* Create Post Modal */}
+      <CreatePostModal
+        isOpen={isCreatePostOpen}
+        setIsOpen={setIsCreatePostOpen}
+        profile={
+          profile?.user
+            ? {
+                name: profile.user.name,
+                username: profile.user.username || "",
+                profile_image: profile.user.profile_image,
+              }
+            : undefined
+        }
+        onPostCreated={fetchUserProfile}
+      />
+
       {/* Cover Image */}
       <div className="relative h-36 bg-gradient-to-r from-indigo-900 to-purple-900">
         <Image
@@ -57,9 +136,18 @@ export function ProfileView() {
       <div className="px-4">
         <div className="flex justify-between items-end -mt-12">
           <Avatar className="h-24 w-24 border-4 border-[#0A0A0F]">
-            <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-purple-700 text-2xl">
-              A
-            </AvatarFallback>
+            {profile?.user?.profile_image ? (
+              <AvatarImage
+                src={profile.user.profile_image}
+                alt={profile.user.name || "Profile"}
+              />
+            ) : (
+              <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-purple-700 text-2xl">
+                {profile?.user?.name
+                  ? profile.user.name.charAt(0).toUpperCase()
+                  : "A"}
+              </AvatarFallback>
+            )}
           </Avatar>
           <Button
             variant="outline"
@@ -72,12 +160,13 @@ export function ProfileView() {
         </div>
 
         <div className="mt-3">
-          <h1 className="text-xl font-bold">Alex Morgan</h1>
-          <p className="text-gray-400">@alexmorgan</p>
+          <h1 className="text-xl font-bold">{profile?.user?.name || "User"}</h1>
+          <p className="text-gray-400">
+            @{profile?.user?.username || "username"}
+          </p>
 
           <p className="text-gray-200 mt-3">
-            UI/UX Designer & Frontend Developer. Creating digital experiences
-            that matter.
+            {profile?.user?.bio || "No bio provided"}
           </p>
 
           <div className="flex flex-wrap gap-y-2 gap-x-4 mt-3 text-sm text-gray-400">
@@ -91,17 +180,23 @@ export function ProfileView() {
             </div>
             <div className="flex items-center">
               <Calendar size={14} className="mr-1" />
-              Joined May 2023
+              {getCleanDate(profile?.user?.created_at || "")}
             </div>
           </div>
 
           <div className="flex gap-6 mt-4">
-            {profileStats.map((stat, index) => (
-              <div key={index} className="flex flex-col">
-                <span className="font-bold">{stat.value}</span>
-                <span className="text-sm text-gray-400">{stat.label}</span>
-              </div>
-            ))}
+            <div className="flex flex-col">
+              <span className="font-bold">{profile?.user?.incidents || 0}</span>
+              <span className="text-sm text-gray-400">Posts</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold">843</span>
+              <span className="text-sm text-gray-400">Following</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold">2.4K</span>
+              <span className="text-sm text-gray-400">Followers</span>
+            </div>
           </div>
         </div>
       </div>
@@ -163,16 +258,32 @@ export function ProfileView() {
         </div>
 
         <TabsContent value="posts" className="mt-4">
-          <ScrollArea className="h-[calc(100vh-420px)]">
+          {/* Create Post Button */}
+          <div className="px-4 mb-4">
+            <Button
+              onClick={() => setIsCreatePostOpen(true)}
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+            >
+              <Plus size={16} className="mr-2" />
+              Create New Post
+            </Button>
+          </div>
+
+          <ScrollArea className="h-[calc(100vh-500px)]">
             <div className="flex flex-col gap-4 px-4">
-              {userPosts.length > 0 ? (
-                userPosts.map((post) => (
+              {isRefreshing ? (
+                <div className="flex justify-center py-10">
+                  <p className="text-gray-400">Loading posts...</p>
+                </div>
+              ) : profile?.incidents && profile.incidents.length > 0 ? (
+                profile.incidents.map((post) => (
                   <PostCard
                     key={post.incident_id}
                     post={post}
                     isLiked={likedPosts[post.incident_id]}
                     onLike={() => toggleLike(post.incident_id)}
                     onDislike={() => toggleLike(post.incident_id)}
+                    isOwnPost={true} // These are always the user's own posts in the profile view
                   />
                 ))
               ) : (
@@ -181,6 +292,7 @@ export function ProfileView() {
                   title="No Posts Yet"
                   description="Share your thoughts with the world"
                   actionLabel="Create Post"
+                  onAction={() => setIsCreatePostOpen(true)}
                 />
               )}
             </div>
@@ -239,18 +351,23 @@ function EmptyProfileTab({
   title,
   description,
   actionLabel,
+  onAction,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
   actionLabel: string;
+  onAction?: () => void;
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <div className="text-gray-500 mb-4">{icon}</div>
       <h3 className="text-xl font-medium mb-2">{title}</h3>
       <p className="text-gray-400 mb-6">{description}</p>
-      <Button className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700">
+      <Button
+        className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+        onClick={onAction}
+      >
         {actionLabel}
       </Button>
     </div>
