@@ -49,6 +49,15 @@ export function ProfileView() {
     setIsRefreshing(true);
 
     try {
+      // Check if profile data is already in localstorage
+      const cachedProfile = localStorage.getItem("profile");
+      if (cachedProfile) {
+        console.log("Using cached profile data");
+        setProfile(JSON.parse(cachedProfile));
+        setIsRefreshing(false);
+        return;
+      }
+
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
       console.log("Backend URL:", backendUrl);
 
@@ -82,6 +91,9 @@ export function ProfileView() {
       const data: Profile = await response.json();
       console.log("Profile data received:", data);
       setProfile(data);
+
+      // Set the profile data in localstorage for faster access
+      localStorage.setItem("profile", JSON.stringify(data));
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
@@ -109,6 +121,7 @@ export function ProfileView() {
                 name: profile.user.name,
                 username: profile.user.username || "",
                 profile_image: profile.user.profile_image,
+                user_id: profile.user.id,
               }
             : undefined
         }

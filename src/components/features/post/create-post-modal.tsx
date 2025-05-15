@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import getAccessToken from "@/lib/getAcessToken";
+import { Profile } from "@/types/profile-types";
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ interface CreatePostModalProps {
     name: string;
     username: string;
     profile_image?: string;
+    user_id: string;
   };
   onPostCreated?: () => void;
 }
@@ -27,12 +29,35 @@ interface CreatePostModalProps {
 export function CreatePostModal({
   isOpen,
   setIsOpen,
-  profile,
+  profile: propProfile,
   onPostCreated,
 }: CreatePostModalProps) {
   const [content, setContent] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [localProfile, setLocalProfile] = useState<Profile | null>(null);
+
+  useEffect(() => {
+    // Try to get profile from localStorage if no profile prop is provided
+    if (!propProfile) {
+      const cachedProfile = localStorage.getItem("profile");
+      if (cachedProfile) {
+        setLocalProfile(JSON.parse(cachedProfile));
+      }
+    }
+  }, [propProfile]);
+
+  // Use prop profile if available, otherwise use local profile
+  const activeProfile =
+    propProfile ||
+    (localProfile?.user
+      ? {
+          name: localProfile.user.name,
+          username: localProfile.user.username || "",
+          profile_image: localProfile.user.profile_image,
+          user_id: localProfile.user.id,
+        }
+      : undefined);
 
   const handleSubmit = async () => {
     if (!content.trim()) {
@@ -52,6 +77,9 @@ export function CreatePostModal({
         return;
       }
 
+      console.log("Active profile:", activeProfile);
+
+      console.log("Token:", token);
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
       if (!backendUrl) {
@@ -61,16 +89,19 @@ export function CreatePostModal({
       // Remove any trailing slashes from the backend URL
       const cleanBackendUrl = backendUrl.replace(/\/$/, "");
 
-      const response = await fetch(`${cleanBackendUrl}/incidents`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          content,
-        }),
-      });
+      const response = await fetch(
+        `${cleanBackendUrl}/incidents/create_incident`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            content,
+          }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to create post: ${response.status}`);
@@ -100,22 +131,20 @@ export function CreatePostModal({
             <DialogTitle className="text-xl font-semibold">
               Create Post
             </DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsOpen(false)}
-            >
-              <X size={18} />
-            </Button>
           </div>
         </DialogHeader>
         <div className="flex items-start gap-3 mt-4">
           <Avatar className="h-10 w-10">
-            {profile?.profile_image ? (
-              <AvatarImage src={profile.profile_image} alt={profile.name} />
+            {activeProfile?.profile_image ? (
+              <AvatarImage
+                src={activeProfile.profile_image}
+                alt={activeProfile.name}
+              />
             ) : (
               <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-purple-700">
-                {profile?.name ? profile.name.charAt(0).toUpperCase() : "A"}
+                {activeProfile?.name
+                  ? activeProfile.name.charAt(0).toUpperCase()
+                  : "A"}
               </AvatarFallback>
             )}
           </Avatar>
