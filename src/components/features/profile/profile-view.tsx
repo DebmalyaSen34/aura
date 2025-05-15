@@ -31,6 +31,7 @@ import { usePosts } from "@/hooks/use-posts";
 import getAccessToken from "@/lib/getAcessToken";
 import { Profile } from "@/types/profile-types";
 import { getCleanDate } from "@/lib/utils";
+import { ProfileSkeleton } from "@/components/features/profile/profile-skeleton";
 
 interface LikedPost {
   incident_id: number;
@@ -226,6 +227,11 @@ export function ProfileView() {
   const handleCoverUpdated = () => {
     fetchUserProfile();
   };
+
+  // If we're refreshing or don't have profile data yet, show the skeleton loader
+  if (isRefreshing || !profile) {
+    return <ProfileSkeleton />;
+  }
 
   return (
     <div className="pb-6">

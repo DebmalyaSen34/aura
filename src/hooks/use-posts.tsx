@@ -9,90 +9,107 @@ export function usePosts() {
   const [likedPosts, setLikedPosts] = useState<Record<string, boolean>>({});
   const [posts, setPosts] = useState<Post[]>([]);
 
-  //* Fetch posts from the database
-  // But before check if posts already exist in the cache
-  // If they do, return them
-  // If they don't, fetch them from the database
-  // Then, save them to the cache
-  // Then, return them
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const cachedPosts = localStorage.getItem("posts");
-        if (cachedPosts && cachedPosts.length > 0) {
+  const fetchPosts = async () => {
+    try {
+      // Check if posts data and timestamp exist in localStorage
+      const cachedPosts = localStorage.getItem("posts");
+      const cacheTimestamp = localStorage.getItem("posts_timestamp");
+
+      if (cachedPosts && cacheTimestamp) {
+        const currentTime = new Date().getTime();
+        const cachedTime = parseInt(cacheTimestamp);
+        const oneMinute = 60 * 1000; // 1 minute in milliseconds
+
+        // Use cached data if it's less than 1 minute old
+        if (currentTime - cachedTime < oneMinute) {
           console.log("Using cached posts");
           setPosts(JSON.parse(cachedPosts));
           setIsLoading(false);
           return;
+        } else {
+          // Clear expired cache
+          localStorage.removeItem("posts");
+          localStorage.removeItem("posts_timestamp");
         }
-
-        const token = getAccessToken();
-        if (!token) {
-          console.error("No access token found");
-          setPosts([]);
-          setIsLoading(false);
-          return;
-        }
-
-        console.log(
-          "Fetching posts from:",
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/incidents/incident-home`
-        );
-
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/incidents/incident-home`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            method: "GET",
-          }
-        );
-
-        if (!response.ok) {
-          console.error("API response not OK:", {
-            status: response.status,
-            statusText: response.statusText,
-            url: response.url,
-          });
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log("API Response:", {
-          data,
-          type: typeof data,
-          isArray: Array.isArray(data),
-          keys: data ? Object.keys(data) : null,
-        });
-
-        // Handle different response structures
-        let postsData = [];
-        if (Array.isArray(data)) {
-          postsData = data;
-        } else if (data && typeof data === "object") {
-          // If data is an object, check for common response structures
-          postsData = data.posts || data.data || data.items || [];
-        }
-
-        if (!Array.isArray(postsData)) {
-          console.error("Could not extract posts array from response:", data);
-          setPosts([]);
-          return;
-        }
-
-        localStorage.setItem("posts", JSON.stringify(postsData));
-        setPosts(postsData);
-      } catch (error) {
-        console.error("Error while fetching posts:", error);
-        setPosts([]); // Set empty array on error
-      } finally {
-        setIsLoading(false);
       }
-    };
 
+      const token = getAccessToken();
+      if (!token) {
+        console.error("No access token found");
+        setPosts([]);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log(
+        "Fetching posts from:",
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/incidents/incident-home`
+      );
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/incidents/incident-home`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          method: "GET",
+        }
+      );
+
+      if (!response.ok) {
+        console.error("API response not OK:", {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url,
+        });
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("API Response:", {
+        data,
+        type: typeof data,
+        isArray: Array.isArray(data),
+        keys: data ? Object.keys(data) : null,
+      });
+
+      // Handle different response structures
+      let postsData = [];
+      if (Array.isArray(data)) {
+        postsData = data;
+      } else if (data && typeof data === "object") {
+        // If data is an object, check for common response structures
+        postsData = data.posts || data.data || data.items || [];
+      }
+
+      if (!Array.isArray(postsData)) {
+        console.error("Could not extract posts array from response:", data);
+        setPosts([]);
+        return;
+      }
+
+      // Store posts with timestamp
+      localStorage.setItem("posts", JSON.stringify(postsData));
+      localStorage.setItem("posts_timestamp", new Date().getTime().toString());
+      setPosts(postsData);
+    } catch (error) {
+      console.error("Error while fetching posts:", error);
+      setPosts([]); // Set empty array on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Initial fetch
     fetchPosts();
+
+    // Set up interval for periodic refresh
+    const refreshInterval = setInterval(fetchPosts, 60000); // 60000ms = 1 minute
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(refreshInterval);
   }, []);
 
   //* Toggle upvotes and downvotes
@@ -228,5 +245,6 @@ export function usePosts() {
     isLoading,
     likedPosts,
     toggleLike,
+    refreshPosts: fetchPosts, // Expose refresh function
   };
 }
