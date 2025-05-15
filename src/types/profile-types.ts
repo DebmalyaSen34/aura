@@ -6,6 +6,7 @@ export interface User {
   username?: string;
   bio?: string;
   profile_image?: string;
+  cover_image?: string;
   created_at: string;
   incidents: number;
 }

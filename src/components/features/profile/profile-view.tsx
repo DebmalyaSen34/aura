@@ -13,8 +13,10 @@ import {
   Grid,
   Bookmark,
   Heart,
+  Camera,
   Plus,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,19 +24,63 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PostCard } from "@/components/features/post/post-card";
 import { CreatePostModal } from "@/components/features/post/create-post-modal";
+import { EditProfileModal } from "@/components/features/profile/edit-profile-modal";
+import { EditCoverModal } from "@/components/features/profile/edit-cover-modal";
+import { EditAvatarModal } from "@/components/features/profile/edit-avatar-modal";
 import { usePosts } from "@/hooks/use-posts";
 import getAccessToken from "@/lib/getAcessToken";
 import { Profile } from "@/types/profile-types";
 import { getCleanDate } from "@/lib/utils";
 
+interface LikedPost {
+  incident_id: number;
+  created_at: string;
+  content: string;
+  incident_user_id: string;
+  username: string;
+  name: string;
+  profile_image: string;
+  total_upvotes: number;
+  total_downvotes: number;
+  total_comments: number;
+  is_upvoted: boolean;
+}
+
 export function ProfileView() {
   const [activeTab, setActiveTab] = useState("posts");
-  const { posts, likedPosts, toggleLike } = usePosts();
+  const { posts, toggleLike } = usePosts();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [isEditCoverModalOpen, setIsEditCoverModalOpen] = useState(false);
+  const [isEditAvatarModalOpen, setIsEditAvatarModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [likedPosts, setLikedPosts] = useState<Record<number, boolean>>({});
+  const [likedPostsData, setLikedPostsData] = useState<LikedPost[]>([]);
 
   const token = getAccessToken();
+
+  // Transform profile data for the UI
+  const profileData = profile?.user
+    ? {
+        name: profile.user.name,
+        username: profile.user.username || "",
+        bio: profile.user.bio || "No bio provided",
+        avatar: profile.user.profile_image,
+        cover_image:
+          profile.user.cover_image || "/placeholder.svg?height=144&width=600",
+        location: "San Francisco, CA",
+        website: "aura.io/alex",
+        user_id: profile.user.id,
+        created_at: profile.user.created_at,
+      }
+    : null;
+
+  const profileStats = [
+    { label: "Posts", value: profile?.user?.incidents || 0 },
+    { label: "Following", value: "843" },
+    { label: "Followers", value: "2.4K" },
+  ];
 
   // Add this console log to debug the profile state
   console.log("Current profile state:", profile);
@@ -49,13 +95,25 @@ export function ProfileView() {
     setIsRefreshing(true);
 
     try {
-      // Check if profile data is already in localstorage
-      const cachedProfile = localStorage.getItem("profile");
-      if (cachedProfile) {
-        console.log("Using cached profile data");
-        setProfile(JSON.parse(cachedProfile));
-        setIsRefreshing(false);
-        return;
+      // Check if profile data is in localStorage and not expired
+      const cachedData = localStorage.getItem("profile");
+      const cacheTimestamp = localStorage.getItem("profile_timestamp");
+
+      if (cachedData && cacheTimestamp) {
+        const currentTime = new Date().getTime();
+        const cachedTime = parseInt(cacheTimestamp);
+        const oneMinute = 60 * 1000; // 1 minute in milliseconds
+
+        if (currentTime - cachedTime < oneMinute) {
+          console.log("Using cached profile data");
+          setProfile(JSON.parse(cachedData));
+          setIsRefreshing(false);
+          return;
+        } else {
+          // Clear expired cache
+          localStorage.removeItem("profile");
+          localStorage.removeItem("profile_timestamp");
+        }
       }
 
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -76,7 +134,7 @@ export function ProfileView() {
           "Content-Type": "application/json",
         },
         method: "GET",
-        credentials: "include", // Add this to ensure cookies are sent
+        credentials: "include",
       });
 
       console.log("Profile response status:", response.status);
@@ -90,14 +148,68 @@ export function ProfileView() {
 
       const data: Profile = await response.json();
       console.log("Profile data received:", data);
+
+      // Update the profile state
       setProfile(data);
 
-      // Set the profile data in localstorage for faster access
+      // Update localStorage with new data and timestamp
       localStorage.setItem("profile", JSON.stringify(data));
+      localStorage.setItem(
+        "profile_timestamp",
+        new Date().getTime().toString()
+      );
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const fetchLikedPosts = async () => {
+    if (!token) {
+      console.error("No authentication token found");
+      return;
+    }
+
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error("Backend URL is not configured");
+      }
+
+      const cleanBackendUrl = backendUrl.replace(/\/$/, "");
+
+      const response = await fetch(
+        `${cleanBackendUrl}/profile/user-liked-incidents`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          method: "GET",
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch liked posts");
+      }
+
+      const data: LikedPost[] = await response.json();
+      console.log("Liked posts data:", data);
+
+      // Store the full liked posts data
+      setLikedPostsData(data);
+
+      // Transform the array into a Record<number, boolean>
+      const likedPostsMap = data.reduce((acc, post) => {
+        acc[post.incident_id] = post.is_upvoted;
+        return acc;
+      }, {} as Record<number, boolean>);
+
+      setLikedPosts(likedPostsMap);
+    } catch (error) {
+      console.error("Error fetching liked posts:", error);
     }
   };
 
@@ -106,8 +218,14 @@ export function ProfileView() {
 
     if (token) {
       fetchUserProfile();
+      fetchLikedPosts();
     }
   }, [token]);
+
+  // Handler for cover image update
+  const handleCoverUpdated = () => {
+    fetchUserProfile();
+  };
 
   return (
     <div className="pb-6">
@@ -116,105 +234,183 @@ export function ProfileView() {
         isOpen={isCreatePostOpen}
         setIsOpen={setIsCreatePostOpen}
         profile={
-          profile?.user
+          profileData
             ? {
-                name: profile.user.name,
-                username: profile.user.username || "",
-                profile_image: profile.user.profile_image,
-                user_id: profile.user.id,
+                name: profileData.name,
+                username: profileData.username,
+                profile_image: profileData.avatar,
+                user_id: profileData.user_id,
               }
             : undefined
         }
         onPostCreated={fetchUserProfile}
       />
 
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        isOpen={isEditProfileModalOpen}
+        setIsOpen={setIsEditProfileModalOpen}
+        profile={profileData}
+      />
+
+      {/* Edit Cover Modal */}
+      <EditCoverModal
+        isOpen={isEditCoverModalOpen}
+        setIsOpen={setIsEditCoverModalOpen}
+        currentCover={
+          profileData?.cover_image || "/placeholder.svg?height=144&width=600"
+        }
+        onCoverUpdated={handleCoverUpdated}
+      />
+
+      {/* Edit Avatar Modal */}
+      <EditAvatarModal
+        isOpen={isEditAvatarModalOpen}
+        setIsOpen={setIsEditAvatarModalOpen}
+        currentAvatar={profileData?.avatar || "/placeholder.svg"}
+        onAvatarUpdated={handleCoverUpdated}
+      />
+
       {/* Cover Image */}
-      <div className="relative h-36 bg-gradient-to-r from-indigo-900 to-purple-900">
+      <div className="relative h-36 sm:h-48 md:h-56 bg-gradient-to-r from-indigo-900 to-purple-900 overflow-hidden">
         <Image
-          src="/placeholder.svg?height=144&width=600"
+          src={
+            profileData?.cover_image || "/placeholder.svg?height=144&width=600"
+          }
           alt="Cover"
           fill
-          className="object-cover opacity-50"
+          className="object-cover opacity-50 transition-transform duration-700 hover:scale-105"
         />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 bg-black/30 text-white hover:bg-black/50"
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F] to-transparent opacity-40"></div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="absolute bottom-4 right-4 flex gap-2"
         >
-          <Edit size={16} />
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-black/30 border-gray-600 backdrop-blur-sm hover:bg-black/50 hover:border-gray-500 transition-all duration-200"
+            onClick={() => setIsEditCoverModalOpen(true)}
+          >
+            <Camera size={14} className="mr-1.5" />
+            Edit Cover
+          </Button>
+        </motion.div>
       </div>
 
       {/* Profile Info */}
       <div className="px-4">
-        <div className="flex justify-between items-end -mt-12">
-          <Avatar className="h-24 w-24 border-4 border-[#0A0A0F]">
-            {profile?.user?.profile_image ? (
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end -mt-12 sm:-mt-16 relative z-10">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="relative group"
+          >
+            <Avatar className="h-24 w-24 sm:h-32 sm:w-32 border-4 border-[#0A0A0F] ring-2 ring-purple-500/20">
               <AvatarImage
-                src={profile.user.profile_image}
-                alt={profile.user.name || "Profile"}
+                src={profileData?.avatar || "/placeholder.svg"}
+                alt={profileData?.name || "Profile"}
+                className="object-cover"
               />
-            ) : (
               <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-purple-700 text-2xl">
-                {profile?.user?.name
-                  ? profile.user.name.charAt(0).toUpperCase()
+                {profileData?.name
+                  ? profileData.name.charAt(0).toUpperCase()
                   : "A"}
               </AvatarFallback>
-            )}
-          </Avatar>
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-[#15151F] border-gray-800 text-white hover:bg-[#1A1A25]"
+            </Avatar>
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-black/50 border-gray-600 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-black/70 hover:border-gray-500"
+              onClick={() => setIsEditAvatarModalOpen(true)}
+            >
+              <Camera size={14} />
+            </Button>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mt-4 sm:mt-0"
           >
-            <Settings size={14} className="mr-1" />
-            Edit Profile
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-[#15151F] border-gray-800 text-white hover:bg-[#1A1A25] hover:border-purple-500/50 transition-all duration-200"
+              onClick={() => setIsEditProfileModalOpen(true)}
+            >
+              <Settings size={14} className="mr-1.5" />
+              Edit Profile
+            </Button>
+          </motion.div>
         </div>
 
-        <div className="mt-3">
-          <h1 className="text-xl font-bold">{profile?.user?.name || "User"}</h1>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-4 sm:mt-6"
+        >
+          <h1 className="text-xl sm:text-2xl font-bold">
+            {profileData?.name || "User"}
+          </h1>
           <p className="text-gray-400">
-            @{profile?.user?.username || "username"}
+            @{profileData?.username || "username"}
           </p>
 
-          <p className="text-gray-200 mt-3">
-            {profile?.user?.bio || "No bio provided"}
+          <p className="text-gray-200 mt-3 sm:mt-4 sm:text-base">
+            {profileData?.bio || "No bio provided"}
           </p>
 
-          <div className="flex flex-wrap gap-y-2 gap-x-4 mt-3 text-sm text-gray-400">
+          <div className="flex flex-wrap gap-y-2 gap-x-4 mt-3 sm:mt-4 text-sm text-gray-400">
+            {profileData?.location && (
+              <div className="flex items-center">
+                <MapPin size={14} className="mr-1.5 text-gray-500" />
+                {profileData.location}
+              </div>
+            )}
+            {profileData?.website && (
+              <div className="flex items-center">
+                <LinkIcon size={14} className="mr-1.5 text-gray-500" />
+                <a
+                  href={`https://${profileData.website}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-400 hover:text-indigo-300 hover:underline transition-colors"
+                >
+                  {profileData.website}
+                </a>
+              </div>
+            )}
             <div className="flex items-center">
-              <MapPin size={14} className="mr-1" />
-              San Francisco, CA
-            </div>
-            <div className="flex items-center">
-              <LinkIcon size={14} className="mr-1" />
-              aura.io/alex
-            </div>
-            <div className="flex items-center">
-              <Calendar size={14} className="mr-1" />
-              {getCleanDate(profile?.user?.created_at || "")}
+              <Calendar size={14} className="mr-1.5 text-gray-500" />
+              {getCleanDate(profileData?.created_at || "")}
             </div>
           </div>
 
-          <div className="flex gap-6 mt-4">
-            <div className="flex flex-col">
-              <span className="font-bold">{profile?.user?.incidents || 0}</span>
-              <span className="text-sm text-gray-400">Posts</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold">843</span>
-              <span className="text-sm text-gray-400">Following</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold">2.4K</span>
-              <span className="text-sm text-gray-400">Followers</span>
-            </div>
+          <div className="flex gap-6 mt-4 sm:mt-6">
+            {profileStats.map((stat, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + index * 0.1 }}
+                className="flex flex-col"
+              >
+                <span className="font-bold text-lg">{stat.value}</span>
+                <span className="text-sm text-gray-400">{stat.label}</span>
+              </motion.div>
+            ))}
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      <Separator className="my-4 bg-gray-800" />
+      <Separator className="my-6 bg-gray-800/50" />
 
       {/* Tabs */}
       <Tabs
@@ -222,11 +418,11 @@ export function ProfileView() {
         className="w-full"
         onValueChange={setActiveTab}
       >
-        <div className="px-4">
+        <div className="px-4 sticky top-0 z-10 bg-[#0A0A0F]/80 backdrop-blur-md py-2 transition-all duration-300">
           <TabsList className="w-full bg-[#15151F] border border-gray-800 rounded-xl p-1">
             <TabsTrigger
               value="posts"
-              className="flex-1 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-600 data-[state=active]:to-purple-600 data-[state=active]:text-white rounded-lg"
+              className="flex-1 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-600 data-[state=active]:to-purple-600 data-[state=active]:text-white rounded-lg transition-all duration-200"
             >
               <Grid size={16} className="mr-2" />
               Posts
@@ -271,88 +467,147 @@ export function ProfileView() {
         </div>
 
         <TabsContent value="posts" className="mt-4">
-          {/* Create Post Button */}
-          <div className="px-4 mb-4">
-            <Button
-              onClick={() => setIsCreatePostOpen(true)}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+          <AnimatePresence mode="wait">
+            <motion.div
+              key="posts-content"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             >
-              <Plus size={16} className="mr-2" />
-              Create New Post
-            </Button>
-          </div>
-
-          <ScrollArea className="h-[calc(100vh-500px)]">
-            <div className="flex flex-col gap-4 px-4">
-              {isRefreshing ? (
-                <div className="flex justify-center py-10">
-                  <p className="text-gray-400">Loading posts...</p>
+              <ScrollArea className="h-[calc(100vh-420px)]">
+                <div className="flex flex-col gap-4 px-4">
+                  {profile?.incidents && profile.incidents.length > 0 ? (
+                    profile.incidents.map((post, index) => (
+                      <motion.div
+                        key={post.incident_id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1, duration: 0.3 }}
+                      >
+                        <PostCard
+                          post={post}
+                          isLiked={likedPosts[post.incident_id]}
+                          onLike={() => toggleLike(post.incident_id)}
+                          onDislike={() => toggleLike(post.incident_id)}
+                          isOwnPost={true}
+                        />
+                      </motion.div>
+                    ))
+                  ) : (
+                    <motion.div
+                      key="empty-posts"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <EmptyProfileTab
+                        icon={<Grid size={40} />}
+                        title="No Posts Yet"
+                        description="Share your thoughts with the world"
+                        actionLabel="Create Post"
+                        onAction={() => setIsCreatePostOpen(true)}
+                      />
+                    </motion.div>
+                  )}
                 </div>
-              ) : profile?.incidents && profile.incidents.length > 0 ? (
-                profile.incidents.map((post) => (
-                  <PostCard
-                    key={post.incident_id}
-                    post={post}
-                    isLiked={likedPosts[post.incident_id]}
-                    onLike={() => toggleLike(post.incident_id)}
-                    onDislike={() => toggleLike(post.incident_id)}
-                    isOwnPost={true} // These are always the user's own posts in the profile view
-                  />
-                ))
-              ) : (
-                <EmptyProfileTab
-                  icon={<Grid size={40} />}
-                  title="No Posts Yet"
-                  description="Share your thoughts with the world"
-                  actionLabel="Create Post"
-                  onAction={() => setIsCreatePostOpen(true)}
-                />
-              )}
-            </div>
-          </ScrollArea>
+              </ScrollArea>
+            </motion.div>
+          </AnimatePresence>
         </TabsContent>
 
         <TabsContent value="media" className="mt-4 px-4">
-          <EmptyProfileTab
-            icon={
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="40"
-                height="40"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect width="18" height="18" x="3" y="3" rx="2" />
-                <circle cx="9" cy="9" r="2" />
-                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-              </svg>
-            }
-            title="No Media Yet"
-            description="Photos and videos you share will appear here"
-            actionLabel="Share Media"
-          />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key="media-content"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <EmptyProfileTab
+                icon={
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="40"
+                    height="40"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect width="18" height="18" x="3" y="3" rx="2" />
+                    <circle cx="9" cy="9" r="2" />
+                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                  </svg>
+                }
+                title="No Media Yet"
+                description="Photos and videos you share will appear here"
+                actionLabel="Share Media"
+              />
+            </motion.div>
+          </AnimatePresence>
         </TabsContent>
 
         <TabsContent value="likes" className="mt-4 px-4">
-          <EmptyProfileTab
-            icon={<Heart size={40} />}
-            title="No Likes Yet"
-            description="Posts you like will appear here"
-            actionLabel="Explore Posts"
-          />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key="likes-content"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <ScrollArea className="h-[calc(100vh-420px)]">
+                <div className="flex flex-col gap-4">
+                  {likedPostsData.length > 0 ? (
+                    likedPostsData.map((post, index) => (
+                      <motion.div
+                        key={post.incident_id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1, duration: 0.3 }}
+                      >
+                        <PostCard
+                          post={post}
+                          isLiked={likedPosts[post.incident_id]}
+                          onLike={() => toggleLike(post.incident_id)}
+                          onDislike={() => toggleLike(post.incident_id)}
+                          isOwnPost={
+                            post.incident_user_id === profile?.user?.id
+                          }
+                        />
+                      </motion.div>
+                    ))
+                  ) : (
+                    <EmptyProfileTab
+                      icon={<Heart size={40} />}
+                      title="No Likes Yet"
+                      description="Posts you like will appear here"
+                      actionLabel="Explore Posts"
+                    />
+                  )}
+                </div>
+              </ScrollArea>
+            </motion.div>
+          </AnimatePresence>
         </TabsContent>
 
         <TabsContent value="saved" className="mt-4 px-4">
-          <EmptyProfileTab
-            icon={<Bookmark size={40} />}
-            title="No Saved Posts"
-            description="Bookmark posts to save them for later"
-            actionLabel="Explore Posts"
-          />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key="saved-content"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <EmptyProfileTab
+                icon={<Bookmark size={40} />}
+                title="No Saved Posts"
+                description="Bookmark posts to save them for later"
+                actionLabel="Explore Posts"
+              />
+            </motion.div>
+          </AnimatePresence>
         </TabsContent>
       </Tabs>
     </div>

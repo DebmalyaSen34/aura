@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import type { ViewType } from "@/types/app-types";
+import { handleLogout } from "@/lib/auth";
 
 interface SideNavProps {
   isOpen: boolean;
@@ -179,7 +180,11 @@ export function SideNav({
           <div className="p-2 border-t border-gray-800">
             <NavItem icon={<Settings size={20} />} label="Settings" />
             <NavItem icon={<HelpCircle size={20} />} label="Help Center" />
-            <NavItem icon={<LogOut size={20} />} label="Log Out" />
+            <NavItem
+              icon={<LogOut size={20} />}
+              label="Log Out"
+              onClick={handleLogout}
+            />
           </div>
         </div>
       </div>

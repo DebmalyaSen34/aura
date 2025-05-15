@@ -81,7 +81,7 @@ export function PostCard({
                   size="icon"
                   className="h-8 w-8 text-gray-400"
                 >
-                  <MoreHorizontal size={16} />
+                  {/* <MoreHorizontal size={16} /> */}
                 </Button>
               </div>
             </div>
