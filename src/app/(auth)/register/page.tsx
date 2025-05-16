@@ -73,11 +73,65 @@ export default function RegisterPage() {
 
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/signup`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Handle different types of errors
+        if (response.status === 409) {
+          setErrors((prev) => ({
+            ...prev,
+            email: "Email already exists",
+          }));
+        } else if (response.status === 400) {
+          // Handle validation errors from backend
+          if (data.errors) {
+            const newErrors = { ...errors };
+            Object.keys(data.errors).forEach((key) => {
+              if (key in newErrors) {
+                newErrors[key as keyof typeof errors] = data.errors[key];
+              }
+            });
+            setErrors(newErrors);
+          }
+        } else {
+          throw new Error(data.message || "Registration failed");
+        }
+        return;
+      }
+
+      // Registration successful
+      // Store the token if your backend returns one
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+      }
+
+      // Redirect to home page or dashboard
       router.push("/");
-    }, 1500);
+    } catch (error) {
+      console.error("Registration error:", error);
+      setErrors((prev) => ({
+        ...prev,
+        email: "An error occurred during registration",
+      }));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Password strength indicators
