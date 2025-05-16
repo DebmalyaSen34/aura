@@ -46,10 +46,8 @@ export function PostCard({
     isFullPost(post) && post.profile_image
       ? post.profile_image
       : "/placeholder.svg";
-  const isUpvoted =
-    isFullPost(post) && post.is_upvoted ? post.is_upvoted : false;
-  const isDownvoted =
-    isFullPost(post) && post.is_downvoted ? post.is_downvoted : false;
+  const isUpvoted = isFullPost(post) && post.is_upvoted;
+  const isDownvoted = isFullPost(post) && post.is_downvoted;
 
   return (
     <motion.div

@@ -89,10 +89,19 @@ export function usePosts() {
         return;
       }
 
+      // Transform the data to match our frontend model
+      const transformedPosts = postsData.map((post: any) => ({
+        ...post,
+        is_upvoted: post.is_upvoted || false,
+        is_downvoted: post.is_downvoted || false,
+        upvotes: post.is_upvoted ? 1 : 0,
+        downvotes: post.is_downvoted ? 1 : 0,
+      }));
+
       // Store posts with timestamp
-      localStorage.setItem("posts", JSON.stringify(postsData));
+      localStorage.setItem("posts", JSON.stringify(transformedPosts));
       localStorage.setItem("posts_timestamp", new Date().getTime().toString());
-      setPosts(postsData);
+      setPosts(transformedPosts);
     } catch (error) {
       console.error("Error while fetching posts:", error);
       setPosts([]); // Set empty array on error
@@ -156,6 +165,8 @@ export function usePosts() {
     let newVoteState = {
       is_upvoted: post.is_upvoted,
       is_downvoted: post.is_downvoted,
+      upvotes: post.upvotes,
+      downvotes: post.downvotes,
       total_upvotes: post.total_upvotes,
       total_downvotes: post.total_downvotes,
     };
@@ -164,14 +175,17 @@ export function usePosts() {
       if (post.is_upvoted) {
         // Remove upvote
         newVoteState.is_upvoted = false;
+        newVoteState.upvotes = 0;
         newVoteState.total_upvotes = Math.max(0, post.total_upvotes - 1);
       } else {
         // Add upvote
         newVoteState.is_upvoted = true;
+        newVoteState.upvotes = 1;
         newVoteState.total_upvotes = post.total_upvotes + 1;
         // Remove downvote if exists
         if (post.is_downvoted) {
           newVoteState.is_downvoted = false;
+          newVoteState.downvotes = 0;
           newVoteState.total_downvotes = Math.max(0, post.total_downvotes - 1);
         }
       }
@@ -179,14 +193,17 @@ export function usePosts() {
       if (post.is_downvoted) {
         // Remove downvote
         newVoteState.is_downvoted = false;
+        newVoteState.downvotes = 0;
         newVoteState.total_downvotes = Math.max(0, post.total_downvotes - 1);
       } else {
         // Add downvote
         newVoteState.is_downvoted = true;
+        newVoteState.downvotes = 1;
         newVoteState.total_downvotes = post.total_downvotes + 1;
         // Remove upvote if exists
         if (post.is_upvoted) {
           newVoteState.is_upvoted = false;
+          newVoteState.upvotes = 0;
           newVoteState.total_upvotes = Math.max(0, post.total_upvotes - 1);
         }
       }
@@ -195,8 +212,8 @@ export function usePosts() {
     // Prepare vote object for API
     const vote = {
       incident_id: postId,
-      is_upvoted: newVoteState.is_upvoted,
-      is_downvoted: newVoteState.is_downvoted,
+      upvotes: newVoteState.upvotes,
+      downvotes: newVoteState.downvotes,
     };
 
     // Optimistically update UI

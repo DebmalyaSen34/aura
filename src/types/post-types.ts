@@ -12,13 +12,15 @@ export interface BasicPost {
 
 export interface Post extends BasicPost {
   user_id?: number;
-  is_upvoted?: boolean;
-  is_downvoted?: boolean;
+  is_upvoted: boolean;
+  is_downvoted: boolean;
+  upvotes: number;
+  downvotes: number;
   profile_image?: string;
 }
 
 export interface Vote {
   incident_id: number;
-  is_upvoted: number;
-  is_downvoted: number;
+  upvotes: number;
+  downvotes: number;
 }
