@@ -1,1 +1,1 @@
-export type ViewType = "home" | "explore" | "alerts" | "profile";
+export type ViewType = "home" | "explore" | "alerts" | "profile" | "messages";

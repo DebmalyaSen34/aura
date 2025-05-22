@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { Home, Search, Bell, User } from "lucide-react";
+import { Home, Search, Bell, User, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ViewType } from "@/types/app-types";
 
@@ -31,6 +31,13 @@ export function BottomNav({ activeView, setActiveView }: BottomNavProps) {
         label="Alerts"
         isActive={activeView === "alerts"}
         onClick={() => setActiveView("alerts")}
+        hasNotification
+      />
+      <NavButton
+        icon={<MessageSquare size={20} />}
+        label="Messages"
+        isActive={activeView === "messages"}
+        onClick={() => setActiveView("messages")}
         hasNotification
       />
       <NavButton

@@ -16,13 +16,12 @@ import {
   Compass,
   Users,
   TrendingUp,
-  MessageCircle,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import type { ViewType } from "@/types/app-types";
-import { handleLogout } from "@/lib/auth";
 
 interface SideNavProps {
   isOpen: boolean;
@@ -140,22 +139,24 @@ export function SideNav({
                 onClick={() => handleNavItemClick("explore")}
               />
               <NavItem
+                icon={<MessageSquare size={20} />}
+                label="Messages"
+                isActive={activeView === "messages"}
+                onClick={() => handleNavItemClick("messages")}
+                badge={5}
+              />
+              <NavItem
                 icon={<Bell size={20} />}
                 label="Alerts"
                 isActive={activeView === "alerts"}
                 onClick={() => handleNavItemClick("alerts")}
                 badge={3}
               />
-              <NavItem
-                icon={<MessageCircle size={20} />}
-                label="Messages"
-                badge={2}
-              />
             </div>
 
             <div className="mb-4">
               <h4 className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                Discover [comming soon...]
+                Discover
               </h4>
               <NavItem icon={<TrendingUp size={20} />} label="Trending" />
               <NavItem icon={<Sparkles size={20} />} label="Popular" />
@@ -180,11 +181,7 @@ export function SideNav({
           <div className="p-2 border-t border-gray-800">
             <NavItem icon={<Settings size={20} />} label="Settings" />
             <NavItem icon={<HelpCircle size={20} />} label="Help Center" />
-            <NavItem
-              icon={<LogOut size={20} />}
-              label="Log Out"
-              onClick={handleLogout}
-            />
+            <NavItem icon={<LogOut size={20} />} label="Log Out" />
           </div>
         </div>
       </div>

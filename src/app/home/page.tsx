@@ -6,10 +6,11 @@ import { FeedView } from "@/components/features/feed/feed-view";
 import { ExploreView } from "@/components/features/explore/explore-view";
 import { AlertsView } from "@/components/features/alerts/alerts-view";
 import { ProfileView } from "@/components/features/profile/profile-view";
+import { MessagesView } from "@/components/features/messages/messages-view";
 
 export default function AuraApp() {
   const [activeView, setActiveView] = useState<
-    "home" | "explore" | "alerts" | "profile"
+    "home" | "explore" | "alerts" | "profile" | "messages"
   >("home");
 
   return (
@@ -18,6 +19,7 @@ export default function AuraApp() {
       {activeView === "explore" && <ExploreView />}
       {activeView === "alerts" && <AlertsView />}
       {activeView === "profile" && <ProfileView />}
+      {activeView === "messages" && <MessagesView />}
     </MainLayout>
   );
 }
